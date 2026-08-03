@@ -8,6 +8,20 @@ static const void *SGObservedWebViewKey = &SGObservedWebViewKey;
 static const void *SGGestureInstalledKey = &SGGestureInstalledKey;
 static const void *SGChromeStateKey = &SGChromeStateKey;
 
+
+static NSArray<UIWindow *> *SGApplicationWindows(void) {
+    NSMutableArray<UIWindow *> *windows = [NSMutableArray array];
+    NSSet<UIScene *> *scenes = UIApplication.sharedApplication.connectedScenes;
+    for (UIScene *scene in scenes) {
+        if (![scene isKindOfClass:UIWindowScene.class]) {
+            continue;
+        }
+        UIWindowScene *windowScene = (UIWindowScene *)scene;
+        [windows addObjectsFromArray:windowScene.windows];
+    }
+    return windows.copy;
+}
+
 @interface SGStoredViewState : NSObject
 @property (nonatomic) BOOL hidden;
 @property (nonatomic) CGFloat alpha;
@@ -49,7 +63,7 @@ static const void *SGChromeStateKey = &SGChromeStateKey;
     [center addObserver:self selector:@selector(applicationDidBecomeActive:) name:UIApplicationDidBecomeActiveNotification object:nil];
     [center addObserver:self selector:@selector(applicationWillResignActive:) name:UIApplicationWillResignActiveNotification object:nil];
     dispatch_async(dispatch_get_main_queue(), ^{
-        for (UIWindow *window in UIApplication.sharedApplication.windows) {
+        for (UIWindow *window in SGApplicationWindows()) {
             [self registerWindow:window];
         }
         [self scheduleEvaluation];
@@ -164,7 +178,7 @@ static const void *SGChromeStateKey = &SGChromeStateKey;
     dispatch_async(dispatch_get_main_queue(), ^{
         NSURL *bestURL = nil;
         CGFloat bestArea = 0;
-        for (UIWindow *window in UIApplication.sharedApplication.windows) {
+        for (UIWindow *window in SGApplicationWindows()) {
             [self registerWindow:window];
             WKWebView *candidate = [self largestVisibleWebViewInView:window];
             if (!candidate || !candidate.URL) {
@@ -326,7 +340,7 @@ static const void *SGChromeStateKey = &SGChromeStateKey;
 
 - (BOOL)invokeControllerBarAPIsHidden:(BOOL)hidden {
     __block BOOL invoked = NO;
-    for (UIWindow *window in UIApplication.sharedApplication.windows) {
+    for (UIWindow *window in SGApplicationWindows()) {
         UIViewController *root = window.rootViewController;
         if (!root) {
             continue;
@@ -446,7 +460,7 @@ static const void *SGChromeStateKey = &SGChromeStateKey;
 }
 
 - (void)setFallbackChromeViewsHidden:(BOOL)hidden {
-    for (UIWindow *window in UIApplication.sharedApplication.windows) {
+    for (UIWindow *window in SGApplicationWindows()) {
         if (window.hidden || window.windowLevel > UIWindowLevelNormal + 1.0) {
             continue;
         }

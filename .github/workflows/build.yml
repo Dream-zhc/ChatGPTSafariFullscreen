@@ -1,0 +1,40 @@
+name: Build RootHide DEB
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install ldid xz
+
+      - name: Install RootHide Theos
+        run: |
+          export THEOS="${RUNNER_TEMP}/theos"
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/roothide/theos/master/bin/install-theos)"
+          echo "THEOS=${THEOS}" >> "${GITHUB_ENV}"
+
+      - name: Build RootHide package
+        run: |
+          make clean
+          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide messages=yes
+          echo "Generated packages:"
+          find packages -maxdepth 1 -type f -print
+
+      - name: Upload DEB
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChatGPTSafariFullscreen-RootHide
+          path: packages/*.deb
+          if-no-files-found: error

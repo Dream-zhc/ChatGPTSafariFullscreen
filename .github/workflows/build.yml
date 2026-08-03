@@ -10,19 +10,17 @@ on:
 permissions:
   contents: read
 
-env:
-  THEOS: ${{ runner.temp }}/theos
-
 jobs:
   build:
     runs-on: macos-14
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Show build environment
+        shell: bash
         run: |
           set -euxo pipefail
           sw_vers
@@ -31,40 +29,51 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-version
 
       - name: Install build dependencies
+        shell: bash
         run: |
           set -euxo pipefail
           brew install ldid xz
 
-      - name: Prepare RootHide Theos without GitHub API
+      - name: Prepare RootHide Theos
+        shell: bash
         run: |
           set -euxo pipefail
 
-          rm -rf "$THEOS"
+          # RUNNER_TEMP is a runner-provided environment variable. It cannot be
+          # referenced through the `runner` expression context at workflow-level
+          # `env`, so resolve it here after the macOS runner has started.
+          THEOS_DIR="${RUNNER_TEMP}/theos"
+          export THEOS="${THEOS_DIR}"
+          echo "THEOS=${THEOS_DIR}" >> "${GITHUB_ENV}"
+
+          rm -rf "${THEOS_DIR}"
           git clone \
             --recursive \
             --depth 1 \
             --shallow-submodules \
             https://github.com/roothide/theos.git \
-            "$THEOS"
+            "${THEOS_DIR}"
 
-          # The official install-theos script queries api.github.com to locate
-          # downloadable patched SDK releases. GitHub Actions can occasionally
-          # rate-limit or fail that request. This tweak only links public UIKit
-          # and WebKit frameworks, so the iPhoneOS SDK already bundled with
-          # Xcode is sufficient and avoids that API dependency entirely.
+          # This tweak only imports public UIKit/WebKit headers. Reuse the
+          # iPhoneOS SDK included with Xcode instead of invoking install-sdk,
+          # which otherwise queries api.github.com for patched SDK releases.
           SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"
           SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
-          mkdir -p "$THEOS/sdks"
-          ln -sfn "$SDK_PATH" "$THEOS/sdks/iPhoneOS${SDK_VERSION}.sdk"
+          mkdir -p "${THEOS_DIR}/sdks"
+          ln -sfn "${SDK_PATH}" "${THEOS_DIR}/sdks/iPhoneOS${SDK_VERSION}.sdk"
 
-          test -f "$THEOS/makefiles/common.mk"
-          test -d "$THEOS/sdks/iPhoneOS${SDK_VERSION}.sdk"
-          echo "Using RootHide Theos at: $THEOS"
-          echo "Using iPhoneOS SDK: $SDK_PATH"
+          test -f "${THEOS_DIR}/makefiles/common.mk"
+          test -d "${THEOS_DIR}/sdks/iPhoneOS${SDK_VERSION}.sdk"
+          echo "Using RootHide Theos: ${THEOS_DIR}"
+          echo "Using iPhoneOS SDK: ${SDK_PATH}"
 
       - name: Build RootHide package
+        shell: bash
         run: |
           set -euxo pipefail
+          test -n "${THEOS:-}"
+          test -f "${THEOS}/makefiles/common.mk"
+
           make clean
           make package \
             FINALPACKAGE=1 \

@@ -7,34 +7,79 @@ on:
       - main
       - master
 
+permissions:
+  contents: read
+
+env:
+  THEOS: ${{ runner.temp }}/theos
+
 jobs:
   build:
     runs-on: macos-14
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Install dependencies
+      - name: Show build environment
         run: |
+          set -euxo pipefail
+          sw_vers
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Install build dependencies
+        run: |
+          set -euxo pipefail
           brew install ldid xz
 
-      - name: Install RootHide Theos
+      - name: Prepare RootHide Theos without GitHub API
         run: |
-          export THEOS="${RUNNER_TEMP}/theos"
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/roothide/theos/master/bin/install-theos)"
-          echo "THEOS=${THEOS}" >> "${GITHUB_ENV}"
+          set -euxo pipefail
+
+          rm -rf "$THEOS"
+          git clone \
+            --recursive \
+            --depth 1 \
+            --shallow-submodules \
+            https://github.com/roothide/theos.git \
+            "$THEOS"
+
+          # The official install-theos script queries api.github.com to locate
+          # downloadable patched SDK releases. GitHub Actions can occasionally
+          # rate-limit or fail that request. This tweak only links public UIKit
+          # and WebKit frameworks, so the iPhoneOS SDK already bundled with
+          # Xcode is sufficient and avoids that API dependency entirely.
+          SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          mkdir -p "$THEOS/sdks"
+          ln -sfn "$SDK_PATH" "$THEOS/sdks/iPhoneOS${SDK_VERSION}.sdk"
+
+          test -f "$THEOS/makefiles/common.mk"
+          test -d "$THEOS/sdks/iPhoneOS${SDK_VERSION}.sdk"
+          echo "Using RootHide Theos at: $THEOS"
+          echo "Using iPhoneOS SDK: $SDK_PATH"
 
       - name: Build RootHide package
         run: |
+          set -euxo pipefail
           make clean
-          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide messages=yes
+          make package \
+            FINALPACKAGE=1 \
+            DEBUG=0 \
+            THEOS_PACKAGE_SCHEME=roothide \
+            messages=yes
+
           echo "Generated packages:"
-          find packages -maxdepth 1 -type f -print
+          find packages -maxdepth 1 -type f -name '*.deb' -print
+          test -n "$(find packages -maxdepth 1 -type f -name '*.deb' -print -quit)"
 
       - name: Upload DEB
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ChatGPTSafariFullscreen-RootHide
           path: packages/*.deb
           if-no-files-found: error
+          retention-days: 14

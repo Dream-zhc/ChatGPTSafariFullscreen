@@ -1,6 +1,6 @@
 Package: com.joseph.chatgptsafarifullscreen
 Name: ChatGPT Safari Fullscreen
-Version: 0.1.0
+Version: 0.1.1
 Architecture: iphoneos-arm64e
 Description: Automatically hides MobileSafari chrome on ChatGPT while preserving Safari login, cookies, cache and rendering.
 Maintainer: Joseph

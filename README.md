@@ -12,6 +12,11 @@
 
 ## 构建
 
+### GitHub Actions 构建说明
+
+当前工作流不会调用 `install-theos`，也不会访问 GitHub Releases API 下载 SDK。它会直接克隆 RootHide Theos，并使用 GitHub macOS Runner 自带的 Xcode iPhoneOS SDK。这样可以避开 `ERROR: api.github.com request failed?!`。本项目只链接公开的 UIKit 和 WebKit 框架，因此不依赖私有 Framework SDK。
+
+
 项目已包含 GitHub Actions。上传到 GitHub 后：
 
 1. 打开 Actions。
@@ -23,7 +28,8 @@
 本地构建：
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/roothide/theos/master/bin/install-theos)"
+git clone --recursive https://github.com/roothide/theos.git ~/theos
+export THEOS=~/theos
 make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
 ```
 
